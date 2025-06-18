@@ -470,7 +470,7 @@ impl Projection {
     }
 
     #[doc(hidden)]
-    pub(crate) fn as_inner(&self) -> InnerProjection {
+    pub(crate) fn as_inner(&'_ self) -> InnerProjection<'_> {
         InnerProjection::from_outer(self)
     }
 }

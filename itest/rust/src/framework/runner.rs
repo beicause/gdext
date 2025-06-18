@@ -165,7 +165,7 @@ impl IntegrationTests {
             return;
         }
 
-        println!("\n\n{}Run{} Godot benchmarks...", FMT_CYAN_BOLD, FMT_END);
+        println!("\n\n{FMT_CYAN_BOLD}Run{FMT_END} Godot benchmarks...");
 
         self.warn_if_debug();
 

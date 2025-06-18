@@ -188,9 +188,7 @@ fn make_extender_doc(sig: &dyn Function, extended_fn_name: &Ident) -> (String, T
         Some(TyName { rust_ty, .. }) => {
             surround_class_prefix = quote! { re_export::#rust_ty:: };
             builder_doc = format!(
-                "Default-param extender for [`{class}::{method}`][super::{class}::{method}].",
-                class = rust_ty,
-                method = extended_fn_name,
+                "Default-param extender for [`{rust_ty}::{extended_fn_name}`][super::{rust_ty}::{extended_fn_name}]."
             );
         }
         None => {
@@ -198,8 +196,7 @@ fn make_extender_doc(sig: &dyn Function, extended_fn_name: &Ident) -> (String, T
             // -> this is currently dead code, but _should_ work if Godot ever adds them.
             surround_class_prefix = TokenStream::new();
             builder_doc = format!(
-                "Default-param extender for [`{function}`][super::{function}].",
-                function = extended_fn_name
+                "Default-param extender for [`{extended_fn_name}`][super::{extended_fn_name}]."
             );
         }
     };

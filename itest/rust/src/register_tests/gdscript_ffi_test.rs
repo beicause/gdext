@@ -9,6 +9,7 @@
 
 #[rustfmt::skip]
 #[allow(clippy::partialeq_to_none)]
+#[allow(clippy::suspicious_else_formatting)]
 pub mod gen_ffi {
     include!(concat!(env!("OUT_DIR"), "/gen_ffi.rs"));
 }
