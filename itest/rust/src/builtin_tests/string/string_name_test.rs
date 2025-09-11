@@ -6,10 +6,16 @@
  */
 
 use std::collections::HashSet;
+use std::sync::LazyLock;
 
 use godot::builtin::{Encoding, GString, NodePath, StringName};
 
 use crate::framework::{assert_eq_self, itest};
+
+// Static string name should not cause "Orphan StringName".
+#[allow(dead_code)]
+static STATIC_STRING_NAME: LazyLock<StringName> =
+    LazyLock::new(|| StringName::from("static_string_name"));
 
 #[itest]
 fn string_name_default() {
@@ -141,6 +147,30 @@ fn string_name_from_cstr() {
         let b = StringName::from(string);
 
         assert_eq!(a, b);
+    }
+}
+
+#[itest]
+fn string_name_c_static() {
+    use std::ffi::CStr;
+
+    let cases: [(&CStr, &str); 3] = [
+        (c"pure ASCII\t[~]", "pure ASCII\t[~]"),
+        (c"\xB1", "±"),
+        (c"Latin-1 \xA3 \xB1 text \xBE", "Latin-1 £ ± text ¾"),
+    ];
+
+    for (bytes, string) in cases.into_iter() {
+        let a = StringName::static_name(bytes);
+        let b = StringName::from(string);
+
+        assert_eq!(a, b);
+
+        let a1 = a.clone();
+        let a2 = StringName::static_name(bytes);
+
+        assert_eq!(a, a1);
+        assert_eq!(a1, a2);
     }
 }
 

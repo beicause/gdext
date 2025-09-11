@@ -5,6 +5,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 use std::fmt;
+use std::sync::OnceLock;
 
 use godot_ffi as sys;
 use godot_ffi::interface_fn;
@@ -137,6 +138,29 @@ impl StringName {
         }
     }
 
+    /// Creates a static `StringName` from a static ASCII/Latin-1 `c"string"`.
+    ///
+    /// This is the fastest way to create a StringName repeatedly, with the result being cached and never released, like `SNAME` in Godot source code. Suitable for scenarios where high performance is required.
+    pub fn static_name(c_str: &'static std::ffi::CStr) -> StringName {
+        static SNAME: OnceLock<StringName> = OnceLock::new();
+        Self::from_opaque(
+            SNAME
+                .get_or_init(|| {
+                    // SAFETY: c_str is nul-terminated and remains valid for entire program duration.
+                    unsafe {
+                        StringName::new_with_string_uninit(|ptr| {
+                            sys::interface_fn!(string_name_new_with_latin1_chars)(
+                                ptr,
+                                c_str.as_ptr(),
+                                sys::conv::SYS_TRUE, // p_is_static
+                            )
+                        })
+                    }
+                })
+                .opaque,
+        )
+    }
+
     /// Number of characters in the string.
     ///
     /// _Godot equivalent: `length`_
@@ -248,11 +272,6 @@ impl StringName {
     #[doc(hidden)]
     pub fn as_inner(&self) -> inner::InnerStringName<'_> {
         inner::InnerStringName::from_outer(self)
-    }
-
-    /// Increment ref-count. This may leak memory if used wrongly.
-    fn inc_ref(&self) {
-        std::mem::forget(self.clone());
     }
 }
 
@@ -384,8 +403,8 @@ impl From<NodePath> for StringName {
     }
 }
 
-impl From<&'static std::ffi::CStr> for StringName {
-    /// Creates a `StringName` from a static ASCII/Latin-1 `c"string"`.
+impl From<&std::ffi::CStr> for StringName {
+    /// Creates a `StringName` from a ASCII/Latin-1 `c"string"`.
     ///
     /// This avoids unnecessary copies and allocations and directly uses the backing buffer. Useful for literals.
     ///
@@ -399,23 +418,17 @@ impl From<&'static std::ffi::CStr> for StringName {
     /// // '±' is a Latin-1 character with codepoint 0xB1. Note that this is not UTF-8, where it would need two bytes.
     /// let sname = StringName::from(c"\xb1 Latin-1 string");
     /// ```
-    fn from(c_str: &'static std::ffi::CStr) -> Self {
+    fn from(c_str: &std::ffi::CStr) -> Self {
         // SAFETY: c_str is nul-terminated and remains valid for entire program duration.
-        let result = unsafe {
+        unsafe {
             Self::new_with_string_uninit(|ptr| {
                 sys::interface_fn!(string_name_new_with_latin1_chars)(
                     ptr,
                     c_str.as_ptr(),
-                    sys::conv::SYS_TRUE, // p_is_static
+                    sys::conv::SYS_FALSE, // p_is_static
                 )
             })
-        };
-
-        // StringName expects that the destructor is not invoked on static instances (or only at global exit; see SNAME(..) macro in Godot).
-        // According to testing with godot4 --verbose, there is no mention of "Orphan StringName" at shutdown when incrementing the ref-count,
-        // so this should not leak memory.
-        result.inc_ref();
-        result
+        }
     }
 }
 
