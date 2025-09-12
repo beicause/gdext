@@ -524,3 +524,26 @@ mod serialize {
         }
     }
 }
+
+#[macro_export]
+macro_rules! static_name {
+    ($str:literal) => {{
+        use godot::sys;
+        use std::sync::OnceLock;
+
+        let c_str: &'static std::ffi::CStr = $str;
+        static SNAME: OnceLock<StringName> = OnceLock::new();
+        SNAME.get_or_init(|| {
+            // SAFETY: c_str is nul-terminated and remains valid for entire program duration.
+            unsafe {
+                StringName::new_with_string_uninit(|ptr| {
+                    sys::interface_fn!(string_name_new_with_latin1_chars)(
+                        ptr,
+                        c_str.as_ptr(),
+                        sys::conv::SYS_TRUE, // p_is_static
+                    )
+                })
+            }
+        })
+    }};
+}
