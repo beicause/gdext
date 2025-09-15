@@ -353,12 +353,6 @@ impl<T: GodotClass> Base<T> {
     /// This method disconnects the lifetime, as opposed to [`Self::constructed_passive()]. Caller is responsible of re-binding the
     /// lifetime to the instance.
     pub(crate) unsafe fn constructed_passive_unbounded(&self) -> PassiveGd<'static, T> {
-        #[cfg(debug_assertions)] // debug_assert! still checks existence of symbols.
-        assert!(
-            !self.is_initializing(),
-            "WithBaseField::base(), base_mut() can only be called on fully-constructed objects, after I*::init() or Gd::from_init_fn()"
-        );
-
         // Create weak reference from the same object pointer without cloning (incrementing refcount).
         let weak_gd = unsafe { Gd::from_obj_sys_weak(self.obj.obj_sys()) };
 

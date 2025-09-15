@@ -450,7 +450,7 @@ where
 
     /// Storage object associated with the extension instance.
     ///
-    /// Returns `None` if self is null.
+    /// Returns `None` if self is null, or if binding is null.
     ///
     /// # Safety
     ///
@@ -475,7 +475,7 @@ where
     }
 
     /// Retrieves and caches pointer to this class instance if `self.obj` is non-null.
-    /// Returns a null pointer otherwise.
+    /// Returns a null pointer otherwise, or if binding is null.
     ///
     /// Note: The returned pointer to the GDExtensionClass instance (even when `self.obj` is non-null)
     /// might still be null when:
@@ -483,9 +483,6 @@ where
     /// - The instance is a placeholder (e.g., non-`tool` classes in the editor).
     ///
     /// However, null pointers might also occur in other, undocumented contexts.
-    ///
-    /// # Panics
-    /// In Debug mode, if binding is null.
     fn resolve_instance_ptr(&self) -> sys::GDExtensionClassInstancePtr {
         if self.is_null() {
             return ptr::null_mut();
@@ -509,8 +506,9 @@ where
 
         let ptr: sys::GDExtensionClassInstancePtr = binding.cast();
 
-        #[cfg(debug_assertions)]
-        crate::classes::ensure_binding_not_null::<T>(ptr);
+        if ptr.is_null() {
+            return ptr::null_mut();
+        }
 
         self.cached_storage_ptr.set(ptr);
         ptr

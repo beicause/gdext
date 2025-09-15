@@ -216,6 +216,7 @@ pub(crate) fn ensure_object_inherits(derived: ClassName, base: ClassName, instan
     )
 }
 
+#[allow(dead_code)]
 #[cfg(debug_assertions)]
 pub(crate) fn ensure_binding_not_null<T>(binding: sys::GDExtensionClassInstancePtr)
 where

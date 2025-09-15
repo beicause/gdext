@@ -232,13 +232,13 @@ macro_rules! make_base_mut {
         #[doc = concat!("See [`", stringify!($doc_type), "::base_mut()`](", stringify!($doc_path), "::base_mut()) for usage.\n")]
         pub struct $ident<'a, T: $bound> {
             passive_gd: PassiveGd<'a, T::Base>,
-            _inaccessible_guard: InaccessibleGuard<'a, T>,
+            _inaccessible_guard: Option<InaccessibleGuard<'a, T>>,
         }
 
         impl<'a, T: $bound> $ident<'a, T> {
             pub(crate) fn new(
                 passive_gd: PassiveGd<'a, T::Base>,
-                inaccessible_guard: InaccessibleGuard<'a, T>,
+                inaccessible_guard: Option<InaccessibleGuard<'a, T>>,
             ) -> Self {
                 Self {
                     passive_gd,
