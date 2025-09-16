@@ -46,7 +46,7 @@ use crate::obj::{bounds, Bounds, DynGd, Gd, GodotClass, Inherits};
 /// them, is generally expensive because of allocations, re-encoding, validations, hashing, etc. While this doesn't matter for a few strings
 /// passed to engine APIs, it can become a problematic when passing long strings in a hot loop.
 ///
-/// In the case of strings, we allow implicit conversion from Rust types `&str`, `&String` and `&'static CStr` (`StringName` only).
+/// In the case of strings, we allow implicit conversion from Rust types `&str`, `&String` and `&CStr` (`StringName` only).
 /// While these conversions are not free, those are either explicit because a string literal is used, or they are unsurprising, because Godot
 /// cannot deal with raw Rust types. On the other hand, `GString` and `StringName` are sometimes used almost interchangeably (example:
 /// [`Node::set_name`](crate::classes::Node::set_name) takes `GString` but [`Node::get_name`](crate::classes::Node::get_name) returns `StringName`).
@@ -394,7 +394,7 @@ impl AsArg<StringName> for &String {
     }
 }
 
-impl AsArg<StringName> for &'static CStr {
+impl AsArg<StringName> for &CStr {
     fn into_arg<'r>(self) -> CowArg<'r, StringName> {
         CowArg::Owned(StringName::from(self))
     }
