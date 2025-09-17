@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
+
 use std::fmt;
 
 use godot_ffi as sys;
@@ -32,12 +33,6 @@ use crate::{impl_shared_string_api, meta};
 ///
 /// Note that Godot ignores any bytes after a null-byte. This means that for instance `"hello, world!"` and  \
 /// `"hello, world!\0 ignored by Godot"` will be treated as the same string if converted to a `StringName`.
-///
-/// # Performance
-///
-/// The fastest way to create string names is by using null-terminated C-string literals such as `c"MyClass"`. These have `'static` lifetime and
-/// can be used directly by Godot, without allocation or conversion. The encoding is limited to Latin-1, however. See the corresponding
-/// [`From<&'static CStr>` impl](#impl-From<%26CStr>-for-StringName).
 ///
 /// # All string types
 ///
@@ -254,6 +249,44 @@ impl StringName {
     fn inc_ref(&self) {
         std::mem::forget(self.clone());
     }
+
+    /// Creates a `StringName` from a static ASCII/Latin-1 `c"string"`.
+    ///
+    /// This avoids unnecessary copies and allocations and directly uses the backing buffer. Useful for literals.
+    ///
+    /// Note that while Latin-1 encoding is the most common encoding for c-strings, it isn't a requirement. So if your c-string
+    /// uses a different encoding (e.g. UTF-8), it is possible that some characters will not show up as expected.
+    ///
+    /// # Safety
+    ///
+    /// `c_str` must be a static c-string that remains valid for the entire program duration.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use godot::builtin::StringName;
+    ///
+    /// // '±' is a Latin-1 character with codepoint 0xB1. Note that this is not UTF-8, where it would need two bytes.
+    /// let sname = StringName::from_static_cstr(c"\xb1 Latin-1 string");
+    /// ```
+    #[doc(hidden)]
+    pub fn from_static_cstr(c_str: &'static std::ffi::CStr) -> Self {
+        // SAFETY: c_str is nul-terminated and remains valid for entire program duration.
+        let result = unsafe {
+            Self::new_with_string_uninit(|ptr| {
+                sys::interface_fn!(string_name_new_with_latin1_chars)(
+                    ptr,
+                    c_str.as_ptr(),
+                    sys::conv::SYS_TRUE, // p_is_static
+                )
+            })
+        };
+
+        // StringName expects that the destructor is not invoked on static instances (or only at global exit; see SNAME(..) macro in Godot).
+        // According to testing with godot4 --verbose, there is no mention of "Orphan StringName" at shutdown when incrementing the ref-count,
+        // so this should not leak memory.
+        result.inc_ref();
+        result
+    }
 }
 
 // SAFETY:
@@ -381,41 +414,6 @@ impl From<NodePath> for StringName {
     /// This is identical to `StringName::from(&path)`, and as such there is no performance benefit.
     fn from(path: NodePath) -> Self {
         Self::from(GString::from(path))
-    }
-}
-
-impl From<&'static std::ffi::CStr> for StringName {
-    /// Creates a `StringName` from a static ASCII/Latin-1 `c"string"`.
-    ///
-    /// This avoids unnecessary copies and allocations and directly uses the backing buffer. Useful for literals.
-    ///
-    /// Note that while Latin-1 encoding is the most common encoding for c-strings, it isn't a requirement. So if your c-string
-    /// uses a different encoding (e.g. UTF-8), it is possible that some characters will not show up as expected.
-    ///
-    /// # Example
-    /// ```no_run
-    /// use godot::builtin::StringName;
-    ///
-    /// // '±' is a Latin-1 character with codepoint 0xB1. Note that this is not UTF-8, where it would need two bytes.
-    /// let sname = StringName::from(c"\xb1 Latin-1 string");
-    /// ```
-    fn from(c_str: &'static std::ffi::CStr) -> Self {
-        // SAFETY: c_str is nul-terminated and remains valid for entire program duration.
-        let result = unsafe {
-            Self::new_with_string_uninit(|ptr| {
-                sys::interface_fn!(string_name_new_with_latin1_chars)(
-                    ptr,
-                    c_str.as_ptr(),
-                    sys::conv::SYS_TRUE, // p_is_static
-                )
-            })
-        };
-
-        // StringName expects that the destructor is not invoked on static instances (or only at global exit; see SNAME(..) macro in Godot).
-        // According to testing with godot4 --verbose, there is no mention of "Orphan StringName" at shutdown when incrementing the ref-count,
-        // so this should not leak memory.
-        result.inc_ref();
-        result
     }
 }
 
