@@ -34,6 +34,10 @@ use crate::{impl_shared_string_api, meta};
 /// Note that Godot ignores any bytes after a null-byte. This means that for instance `"hello, world!"` and  \
 /// `"hello, world!\0 ignored by Godot"` will be treated as the same string if converted to a `StringName`.
 ///
+/// # Performance
+///
+/// The fastest way to create string names is using [`static_name!`][crate::builtin::static_name], which creates a static cached `StringName` from string literals. The encoding is limited to ASCII, otherwise a compilation error will occur.
+///
 /// # All string types
 ///
 /// | Intended use case | String type                                |
@@ -245,11 +249,6 @@ impl StringName {
         inner::InnerStringName::from_outer(self)
     }
 
-    /// Increment ref-count. This may leak memory if used wrongly.
-    fn inc_ref(&self) {
-        std::mem::forget(self.clone());
-    }
-
     /// Creates a `StringName` from a static ASCII/Latin-1 `c"string"`.
     ///
     /// This avoids unnecessary copies and allocations and directly uses the backing buffer. Useful for literals.
@@ -271,21 +270,16 @@ impl StringName {
     #[doc(hidden)]
     pub fn from_static_cstr(c_str: &'static std::ffi::CStr) -> Self {
         // SAFETY: c_str is nul-terminated and remains valid for entire program duration.
-        let result = unsafe {
+
+        unsafe {
             Self::new_with_string_uninit(|ptr| {
                 sys::interface_fn!(string_name_new_with_latin1_chars)(
                     ptr,
                     c_str.as_ptr(),
-                    sys::conv::SYS_TRUE, // p_is_static
+                    sys::conv::SYS_FALSE, // p_is_static
                 )
             })
-        };
-
-        // StringName expects that the destructor is not invoked on static instances (or only at global exit; see SNAME(..) macro in Godot).
-        // According to testing with godot4 --verbose, there is no mention of "Orphan StringName" at shutdown when incrementing the ref-count,
-        // so this should not leak memory.
-        result.inc_ref();
-        result
+        }
     }
 }
 
@@ -521,4 +515,36 @@ mod serialize {
             deserializer.deserialize_str(StringNameVisitor)
         }
     }
+}
+
+/// Creates and gets a reference to a static `StringName` from a ASCII string.
+///
+/// This is the fastest way to create a StringName repeatedly, with the result being cached and never released, like `SNAME` in Godot source code. Suitable for scenarios where high performance is required.
+#[macro_export]
+macro_rules! static_name {
+    ($str:expr) => {{
+        use std::sync::OnceLock;
+
+        use godot::sys;
+
+        const STATIC_NAME_STR: &str = concat!($str, "\0");
+        // It should also supports Latin1, but for the sake of simplicity we only allow ASCII.
+        const _: () = assert!(STATIC_NAME_STR.is_ascii());
+        const C_STR_PTR: *const std::ffi::c_char =
+            STATIC_NAME_STR.as_ptr() as *const std::ffi::c_char;
+
+        static SNAME: OnceLock<StringName> = OnceLock::new();
+        SNAME.get_or_init(|| {
+            // SAFETY: c_str is nul-terminated and remains valid for entire program duration.
+            unsafe {
+                StringName::new_with_string_uninit(|ptr| {
+                    sys::interface_fn!(string_name_new_with_latin1_chars)(
+                        ptr,
+                        C_STR_PTR,
+                        sys::conv::SYS_TRUE, // p_is_static
+                    )
+                })
+            }
+        })
+    }};
 }

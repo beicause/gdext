@@ -7,7 +7,7 @@
 
 use std::collections::HashSet;
 
-use godot::builtin::{Encoding, GString, NodePath, StringName};
+use godot::builtin::{static_name, Encoding, GString, NodePath, StringName};
 
 use crate::framework::{assert_eq_self, itest};
 
@@ -142,6 +142,31 @@ fn string_name_from_cstr() {
 
         assert_eq!(a, b);
     }
+}
+
+#[itest]
+fn string_name_static_name() {
+    let a = static_name!("pure ASCII\t[~]").clone();
+    let b = StringName::from("pure ASCII\t[~]");
+
+    assert_eq!(a, b);
+
+    let a = static_name!("pure ASCII 2").clone();
+    let b = StringName::from("pure ASCII 2");
+
+    assert_eq!(a, b);
+
+    // error[E0080]: evaluation panicked: assertion failed: static_name_str.is_ascii()
+    // let a = static_name!("±").clone();
+    // let b = StringName::from("±");
+
+    // assert_eq!(a, b);
+
+    // error[E0080]: evaluation panicked: assertion failed: static_name_str.is_ascii()
+    // let a = static_name!("Latin-1 £ ± text ¾").clone();
+    // let b = StringName::from("Latin-1 £ ± text ¾");
+
+    // assert_eq!(a, b);
 }
 
 #[itest]
