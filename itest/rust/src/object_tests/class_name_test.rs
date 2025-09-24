@@ -156,22 +156,10 @@ fn class_name_debug() {
 #[cfg(debug_assertions)]
 #[itest]
 fn class_name_alloc_panic() {
-    // ASCII.
-    {
-        let _1st = ClassId::__alloc_next_ascii(c"DuplicateTestClass");
-
-        expect_panic("2nd allocation with same ASCII string fails", || {
-            let _2nd = ClassId::__alloc_next_ascii(c"DuplicateTestClass");
-        });
-    }
-
     // Unicode.
-    #[cfg(since_api = "4.4")]
-    {
-        let _1st = ClassId::__alloc_next_unicode("クラス名");
+    let _1st = ClassId::__alloc_next_unicode("クラス名");
 
-        expect_panic("2nd allocation with same Unicode string fails", || {
-            let _2nd = ClassId::__alloc_next_unicode("クラス名");
-        });
-    }
+    expect_panic("2nd allocation with same Unicode string fails", || {
+        let _2nd = ClassId::__alloc_next_unicode("クラス名");
+    });
 }

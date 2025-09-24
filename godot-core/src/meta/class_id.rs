@@ -9,7 +9,6 @@ use std::any::TypeId;
 use std::borrow::Cow;
 use std::cell::OnceCell;
 use std::collections::HashMap;
-use std::ffi::CStr;
 use std::fmt;
 use std::hash::Hash;
 
@@ -127,37 +126,16 @@ impl ClassId {
         Self { global_index: 0 }
     }
 
-    /// Create a new ASCII; expect to be unique. Internal, reserved for macros.
-    #[doc(hidden)]
-    pub fn __alloc_next_ascii(class_name_cstr: &'static CStr) -> Self {
-        let utf8 = class_name_cstr
-            .to_str()
-            .expect("class name is invalid UTF-8");
-
-        assert!(
-            utf8.is_ascii(),
-            "ClassId::alloc_next_ascii() with non-ASCII Unicode string '{utf8}'"
-        );
-
-        let source = ClassIdSource::Borrowed(class_name_cstr);
-        let mut cache = CLASS_ID_CACHE.lock();
-        cache.insert_class_id(source, None, true)
-    }
-
     /// Create a new Unicode entry; expect to be unique. Internal, reserved for macros.
     #[doc(hidden)]
     pub fn __alloc_next_unicode(class_name_str: &'static str) -> Self {
+        #[cfg(before_api = "4.4")]
         assert!(
-            cfg!(since_api = "4.4"),
+            class_name_str.is_ascii(),
             "Before Godot 4.4, class names must be ASCII, but '{class_name_str}' is not.\nSee https://github.com/godotengine/godot/pull/96501."
         );
 
-        assert!(
-            !class_name_str.is_ascii(),
-            "ClassId::__alloc_next_unicode() with ASCII string '{class_name_str}'"
-        );
-
-        let source = ClassIdSource::Owned(class_name_str.to_owned());
+        let source = ClassIdSource::Borrowed(class_name_str);
         let mut cache = CLASS_ID_CACHE.lock();
         cache.insert_class_id(source, None, true)
     }
@@ -206,7 +184,7 @@ impl ClassId {
 
 impl fmt::Display for ClassId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.with_string_name(|s| s.fmt(f))
+        self.to_cow_str().fmt(f)
     }
 }
 
@@ -222,10 +200,6 @@ impl fmt::Debug for ClassId {
             write!(f, "ClassId({:?})", name)
         }
     }
-}
-
-fn ascii_cstr_to_str(cstr: &CStr) -> &str {
-    cstr.to_str().expect("should be validated ASCII")
 }
 
 // ----------------------------------------------------------------------------------------------------------------------------------------------
@@ -247,7 +221,7 @@ impl ClassIdEntry {
     }
 
     fn none() -> Self {
-        Self::new(ClassIdSource::Borrowed(c""))
+        Self::new(ClassIdSource::Borrowed(""))
     }
 }
 
@@ -256,21 +230,21 @@ impl ClassIdEntry {
 /// `Cow`-like enum for class names, but with C strings as the borrowed variant.
 enum ClassIdSource {
     Owned(String),
-    Borrowed(&'static CStr),
+    Borrowed(&'static str),
 }
 
 impl ClassIdSource {
     fn to_string_name(&self) -> StringName {
         match self {
             ClassIdSource::Owned(s) => StringName::from(s),
-            ClassIdSource::Borrowed(cstr) => StringName::__cstr(cstr),
+            ClassIdSource::Borrowed(str) => StringName::from(*str),
         }
     }
 
     fn as_cow_str(&self) -> Cow<'static, str> {
         match self {
             ClassIdSource::Owned(s) => Cow::Owned(s.clone()),
-            ClassIdSource::Borrowed(cstr) => Cow::Borrowed(ascii_cstr_to_str(cstr)),
+            ClassIdSource::Borrowed(str) => Cow::Borrowed(str),
         }
     }
 }
